@@ -1,0 +1,82 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "tooltrap"
+version = "1.0.0"
+description = "AI-agent security evaluation toolkit: a 300-prompt ASI red-teaming library plus MCPBench, an executable benchmark that grades what agents DO with hostile MCP tools"
+readme = "README.md"
+license = { text = "Apache-2.0" }
+authors = [
+    { name = "Waqar Javed", email = "waqar@agentsafelabs.io" },
+]
+keywords = [
+    "ai-safety", "red-teaming", "llm", "agents",
+    "owasp", "evaluation", "prompt-injection", "jailbreak",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Information Technology",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Security",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+requires-python = ">=3.11"
+dependencies = [
+    "pydantic>=2.0",
+    "httpx>=0.25",
+    "click>=8.0",
+]
+
+[project.optional-dependencies]
+langchain = ["langchain-core>=0.1"]
+autogen = ["ag2>=0.2"]
+crewai = ["crewai>=0.30"]
+llamaindex = ["llama-index-core>=0.11"]
+openai-agents = ["openai-agents>=0.1", "openai<2.45"]
+google-adk = ["google-adk>=1.0"]
+semantic-kernel = ["semantic-kernel>=1.26"]
+judge-anthropic = ["anthropic>=0.40"]
+judge-openai = ["openai>=1.40"]
+judge-google = ["google-genai>=1.0"]
+dev = [
+    "pytest>=7.0",
+    "pytest-asyncio>=0.21",
+    "ruff>=0.1",
+    "hatchling",
+]
+
+[project.scripts]
+tooltrap = "tooltrap.cli:main"
+agentport-bench = "agentport_bench.cli:main"
+tooltrap-judge = "tooltrap.judge.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/enabled404/tooltrap"
+Documentation = "https://github.com/enabled404/tooltrap#readme"
+"Bug Tracker" = "https://github.com/enabled404/tooltrap/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["tooltrap", "agentport_bench"]
+
+[tool.hatch.build.targets.sdist]
+exclude = ["docs/assets/*.png", "docs/planning/", ".env.example"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+markers = [
+    "e2e_pip_cycle: real pip install/uninstall, mutates .venv, opt-in only",
+    "live_model: calls a real model with a real API key (costs money), opt-in only: pytest -m live_model",
+]
+addopts = "-m 'not e2e_pip_cycle and not live_model'"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"

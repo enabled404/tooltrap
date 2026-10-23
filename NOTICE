@@ -1,0 +1,21 @@
+ToolTrap
+========
+
+ToolTrap builds on the SafeLabs Eval framework (Apache-2.0,
+Copyright AgentSafeLabs) and extends it with the MCPBench suite.
+
+The foundation library — the 300-prompt ASI red-teaming corpus, the
+runner, the scoring detectors, and the framework adapters — originates
+from SafeLabs Eval, Copyright AgentSafeLabs, licensed under the
+Apache License, Version 2.0. The full license text is in the LICENSE
+file at the root of this distribution, and it applies to the whole
+tree, including the new MCPBench package.
+
+MCPBench — the rogue MCP server fixture, the 30 MCP01–MCP05 scenarios,
+the tool-call transcript harness, and the transcript detectors — is
+the new work shipped in ToolTrap 1.0.0, released under the same
+Apache License, Version 2.0.
+
+No copyright notices from the original work have been removed or
+altered. See CREDITS.md for the foundation framework's own contributor
+acknowledgements.

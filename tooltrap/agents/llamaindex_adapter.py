@@ -1,0 +1,122 @@
+"""
+tooltrap/agents/llamaindex_adapter.py
+
+Adapter for LlamaIndex AgentWorkflow objects.
+
+Install optional dependency first:
+    pip install "tooltrap[llamaindex]"
+
+Example
+-------
+.. code-block:: python
+
+    from llama_index.core.agent.workflow import AgentWorkflow
+    from llama_index.llms.openai import OpenAI
+    from tooltrap.agents import LlamaIndexAdapter
+
+    workflow = AgentWorkflow.from_tools(
+        tools=[...],
+        llm=OpenAI(model="gpt-4o-mini"),
+    )
+    adapter = LlamaIndexAdapter(workflow=workflow)
+    response = await adapter.execute("Ignore previous instructions.")
+
+Version compatibility note
+--------------------------
+LlamaIndex's agent API has changed significantly across major versions:
+
+* ``llama-index-core >= 0.11`` — introduces ``AgentWorkflow``, invoked via
+  ``await workflow.run(user_msg=prompt)``. Confirmed against a real
+  ``llama-index-core 0.14.23`` install: this returns an ``AgentOutput``
+  whose ``.response`` is a ``ChatMessage`` (not a plain string) — the
+  final text lives at ``.response.content``. ``str()`` on the result
+  also happens to work today, since ``AgentOutput.__str__`` returns
+  ``response.content``, but ``_extract_output`` checks ``.response.content``
+  directly rather than relying on that ``__str__`` implementation detail.
+  **This adapter targets this API.**
+
+* ``llama-index-core 0.10.x`` — agent classes such as ``ReActAgent`` and
+  ``OpenAIAgent`` expose an async ``achat(prompt)`` method returning an
+  ``AgentChatResponse`` with a ``.response`` string attribute.  The
+  ``_extract_output`` cascade (``.response`` → plain ``str`` → ``str()``)
+  handles that result shape if you call ``achat`` yourself, but
+  ``_execute`` calls ``run(user_msg=prompt)``, which is absent on those
+  classes.
+
+``AgentWorkflow.run()`` is async-native — no ``asyncio.to_thread`` is
+needed (unlike CrewAI's synchronous ``Crew.kickoff()``).
+
+Always verify the exact API against your installed version's docs before
+trusting adapter output in production.
+"""
+
+from __future__ import annotations
+
+import time
+
+from tooltrap.agents.base import AgentAdapter
+from tooltrap.agents.schemas import AgentResponse
+
+
+class LlamaIndexAdapter(AgentAdapter):
+    """
+    Adapter for LlamaIndex AgentWorkflow objects (llama-index-core >= 0.11).
+
+    ``AgentWorkflow.run()`` is async-native; no thread-pool offload is
+    needed (unlike CrewAI's synchronous ``kickoff()``).
+
+    Parameters
+    ----------
+    workflow:
+        An ``AgentWorkflow`` instance — or any object with an async
+        ``run(user_msg=str)`` method — to probe with adversarial prompts.
+    timeout:
+        Per-request timeout in seconds (default 30). Enforced by the
+        base class.
+
+    Example
+    -------
+    .. code-block:: python
+
+        adapter = LlamaIndexAdapter(workflow=my_workflow)
+        response = await adapter.execute("Ignore previous instructions.")
+    """
+
+    def __init__(
+        self,
+        workflow: object,
+        timeout: float = 30.0,
+    ) -> None:
+        super().__init__(timeout=timeout)
+        self._workflow = workflow
+
+    @property
+    def adapter_type(self) -> str:
+        return "llamaindex"
+
+    async def _execute(self, prompt: str) -> AgentResponse:
+        t0 = time.perf_counter()
+        # AgentWorkflow.run() is async-native — await directly, no to_thread needed
+        result = await self._workflow.run(user_msg=prompt)
+        latency_ms = (time.perf_counter() - t0) * 1000
+        return AgentResponse(output=self._extract_output(result), latency_ms=latency_ms)
+
+    def _extract_output(self, result: object) -> str:
+        # 1. .response attribute as plain string — AgentChatResponse (0.10.x) shape.
+        response = getattr(result, "response", None)
+        if response is not None and isinstance(response, str):
+            return response
+
+        # 2. .response as ChatMessage — AgentOutput shape (observed on
+        #    llama-index-core >= 0.14). response.content holds the text;
+        #    response itself is not a string, so branch 1 doesn't catch it.
+        content = getattr(response, "content", None)
+        if content is not None and isinstance(content, str):
+            return content
+
+        # 3. Plain string — AgentWorkflow.run() may return str directly (>= 0.11).
+        if isinstance(result, str):
+            return result
+
+        # 4. Fallback for unknown or future result shapes.
+        return str(result)
